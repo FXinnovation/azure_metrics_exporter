@@ -43,6 +43,7 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 
 type resourceMeta struct {
 	resourceURL  string
+	resourceType string
 	metrics      string
 	aggregations []string
 }
@@ -103,6 +104,15 @@ func (c *Collector) extractMetrics(ch chan<- prometheus.Metric, resource resourc
 			)
 		}
 	}
+
+	// NOTE resource info metric goes here
+	resourceInfo := "resource_info"
+	ch <- prometheus.MustNewConstMetric(
+		prometheus.NewDesc(resourceInfo, resourceInfo, nil, map[string]string{"resource_type": resource.resourceType}),
+		prometheus.UntypedValue,
+		1,
+	)
+
 }
 
 func (c *Collector) batchCollectResources(ch chan<- prometheus.Metric, resources []resourceMeta) {
