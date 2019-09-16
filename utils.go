@@ -41,6 +41,27 @@ func CreateResourceLabels(resourceID string) map[string]string {
 	return labels
 }
 
+func CreateAllResourceLabelsFrom(rm resourceMeta) map[string]string {
+	labels := make(map[string]string)
+	split := strings.Split(rm.ResourceURL, "/")
+	labels["resource_group"] = split[4]
+	labels["resource_name"] = split[8]
+	labels["resource_type"] = rm.Resource.ResourceType
+
+	for k, v := range rm.Resource.Tags {
+		k = strings.ToLower(k)
+		k = strings.Replace(k, " ", "_", -1)
+		k = strings.Replace(k, "-", "_", -1)
+		k = strings.Replace(k, "/", "_per_", -1)
+		labels[k] = v
+	}
+
+	if len(split) > 13 {
+		labels["sub_resource_name"] = split[10]
+	}
+	return labels
+}
+
 func hasAggregation(aggregations []string, aggregation string) bool {
 	if len(aggregations) == 0 {
 		return true

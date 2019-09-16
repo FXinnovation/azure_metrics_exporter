@@ -73,12 +73,23 @@ type AzureBatchRequestResponse struct {
 
 type AzureResourceListResponse struct {
 	Value []struct {
-		Id        string `json:"id"`
-		Name      string `json:"name"`
-		Type      string `json:"type"`
-		ManagedBy string `json:"managedBy"`
-		Location  string `json:"location"`
+		Id        string            `json:"id"`
+		Name      string            `json:"name"`
+		Type      string            `json:"type"`
+		ManagedBy string            `json:"managedBy"`
+		Location  string            `json:"location"`
+		Tags      map[string]string `json:"tags"`
 	} `json:"value"`
+}
+
+type AzureResource struct {
+	ID           string
+	Subscription string
+	Name         string
+	Location     string
+	ManagedBy    string
+	ResourceType string
+	Tags         map[string]string
 }
 
 // AzureClient represents our client to talk to the Azure api
@@ -135,9 +146,7 @@ func (ac *AzureClient) getAccessToken() error {
 
 // Returns metric definitions for all configured target and resource groups
 func (ac *AzureClient) getMetricDefinitions() (map[string]AzureMetricDefinitionResponse, error) {
-
 	definitions := make(map[string]AzureMetricDefinitionResponse)
-
 	for _, target := range sc.C.Targets {
 		def, err := ac.getAzureMetricDefinitionResponse(target.Resource)
 		if err != nil {
@@ -153,14 +162,13 @@ func (ac *AzureClient) getMetricDefinitions() (map[string]AzureMetricDefinitionR
 				resourceGroup.ResourceGroup, resourceGroup.ResourceTypes, err)
 		}
 		for _, resource := range resources {
-			def, err := ac.getAzureMetricDefinitionResponse(resource)
+			def, err := ac.getAzureMetricDefinitionResponse(resource.ID)
 			if err != nil {
 				return nil, err
 			}
-			definitions[resource] = *def
+			definitions[resource.ID] = *def
 		}
 	}
-
 	return definitions, nil
 }
 
@@ -193,22 +201,22 @@ func (ac *AzureClient) getAzureMetricDefinitionResponse(resource string) (*Azure
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshalling response body: %v", err)
 	}
-
 	return def, nil
 }
 
 // Returns resource list resolved and filtered from resource_groups configuration
-func (ac *AzureClient) filteredListFromResourceGroup(resourceGroup config.ResourceGroup) ([]string, error) {
+func (ac *AzureClient) filteredListFromResourceGroup(resourceGroup config.ResourceGroup) ([]AzureResource, error) {
 	resources, err := ac.listFromResourceGroup(resourceGroup.ResourceGroup, resourceGroup.ResourceTypes)
 	if err != nil {
 		return nil, err
 	}
 	filteredResources := ac.filterResources(resources, resourceGroup)
+
 	return filteredResources, nil
 }
 
 // Returns resource list filtered by tag name and tag value
-func (ac *AzureClient) filteredListByTag(resourceTag config.ResourceTag) ([]string, error) {
+func (ac *AzureClient) filteredListByTag(resourceTag config.ResourceTag) ([]AzureResource, error) {
 	resources, err := ac.listByTag(resourceTag.ResourceTagName, resourceTag.ResourceTagValue)
 	if err != nil {
 		return nil, err
@@ -217,7 +225,7 @@ func (ac *AzureClient) filteredListByTag(resourceTag config.ResourceTag) ([]stri
 }
 
 // Returns all resources for given resource group and types
-func (ac *AzureClient) listFromResourceGroup(resourceGroup string, resourceTypes []string) ([]string, error) {
+func (ac *AzureClient) listFromResourceGroup(resourceGroup string, resourceTypes []string) ([]AzureResource, error) {
 	apiVersion := "2018-02-01"
 
 	var filterTypesElements []string
@@ -225,13 +233,10 @@ func (ac *AzureClient) listFromResourceGroup(resourceGroup string, resourceTypes
 		filterTypesElements = append(filterTypesElements, fmt.Sprintf("resourcetype eq '%s'", filterType))
 	}
 	filterTypes := url.QueryEscape(strings.Join(filterTypesElements, " or "))
-
 	subscription := fmt.Sprintf("subscriptions/%s", sc.C.Credentials.SubscriptionID)
-
 	resourcesEndpoint := fmt.Sprintf("%s/%s/resourceGroups/%s/resources?api-version=%s&$filter=%s", sc.C.ResourceManagerURL, subscription, resourceGroup, apiVersion, filterTypes)
 
 	body, err := getAzureMonitorResponse(resourcesEndpoint)
-
 	if err != nil {
 		return nil, err
 	}
@@ -242,24 +247,32 @@ func (ac *AzureClient) listFromResourceGroup(resourceGroup string, resourceTypes
 		return nil, fmt.Errorf("Error unmarshalling response body: %v", err)
 	}
 
-	resources := extractResourceNames(data, subscription)
-
+	var resources []AzureResource
+	var subscriptionPrefixLen = len(subscription) + 1
+	for _, val := range data.Value {
+		resources = append(resources, AzureResource{
+			ID:           val.Id[subscriptionPrefixLen:],
+			Subscription: subscription,
+			Name:         val.Name,
+			Location:     val.Location,
+			ManagedBy:    val.ManagedBy,
+			ResourceType: val.Type,
+			Tags:         val.Tags,
+		})
+	}
 	return resources, nil
 }
 
 // Returns all resource with the given couple tagname, tagvalue
-func (ac *AzureClient) listByTag(tagName string, tagValue string) ([]string, error) {
+func (ac *AzureClient) listByTag(tagName string, tagValue string) ([]AzureResource, error) {
 	apiVersion := "2018-05-01"
 	securedTagName := secureString(tagName)
 	securedTagValue := secureString(tagValue)
 	filterTypes := url.QueryEscape(fmt.Sprintf("tagName eq '%s' and tagValue eq '%s'", securedTagName, securedTagValue))
-
 	subscription := fmt.Sprintf("subscriptions/%s", sc.C.Credentials.SubscriptionID)
-
 	resourcesEndpoint := fmt.Sprintf("%s/%s/resources?api-version=%s&$filter=%s", sc.C.ResourceManagerURL, subscription, apiVersion, filterTypes)
 
 	body, err := getAzureMonitorResponse(resourcesEndpoint)
-
 	if err != nil {
 		return nil, err
 	}
@@ -270,8 +283,19 @@ func (ac *AzureClient) listByTag(tagName string, tagValue string) ([]string, err
 		return nil, fmt.Errorf("Error unmarshalling response body: %v", err)
 	}
 
-	resources := extractResourceNames(data, subscription)
-
+	var resources []AzureResource
+	var subscriptionPrefixLen = len(subscription) + 1
+	for _, val := range data.Value {
+		resources = append(resources, AzureResource{
+			ID:           val.Id[subscriptionPrefixLen:],
+			Subscription: subscription,
+			Name:         val.Name,
+			Location:     val.Location,
+			ManagedBy:    val.ManagedBy,
+			ResourceType: val.Type,
+			Tags:         val.Tags,
+		})
+	}
 	return resources, nil
 }
 
@@ -302,7 +326,6 @@ func getAzureMonitorResponse(azureManagementEndpoint string) ([]byte, error) {
 		return nil, fmt.Errorf("Error reading body of response: %v", err)
 	}
 	return body, err
-
 }
 
 // Extract resource names from the AzureResourceListResponse
@@ -319,22 +342,18 @@ func extractResourceNames(data AzureResourceListResponse, subscription string) [
 }
 
 // Returns a filtered resource list based on a given resource list and regular expressions from the configuration
-func (ac *AzureClient) filterResources(resources []string, resourceGroup config.ResourceGroup) []string {
-	filteredResources := []string{}
+func (ac *AzureClient) filterResources(resources []AzureResource, resourceGroup config.ResourceGroup) []AzureResource {
+	filteredResources := []AzureResource{}
 
 	for _, resource := range resources {
-		resourceParts := strings.Split(resource, "/")
-		resourceName := resourceParts[len(resourceParts)-1]
-
 		if len(resourceGroup.ResourceNameIncludeRe) != 0 {
 			include := false
 			for _, rx := range resourceGroup.ResourceNameIncludeRe {
-				if rx.MatchString(resourceName) {
+				if rx.MatchString(resource.Name) {
 					include = true
 					break
 				}
 			}
-
 			if !include {
 				continue
 			}
@@ -342,7 +361,7 @@ func (ac *AzureClient) filterResources(resources []string, resourceGroup config.
 
 		exclude := false
 		for _, rx := range resourceGroup.ResourceNameExcludeRe {
-			if rx.MatchString(resourceName) {
+			if rx.MatchString(resource.Name) {
 				exclude = true
 				break
 			}
@@ -351,23 +370,21 @@ func (ac *AzureClient) filterResources(resources []string, resourceGroup config.
 		if exclude {
 			continue
 		}
-
 		filteredResources = append(filteredResources, resource)
 	}
-
 	return filteredResources
 }
 
 func (ac *AzureClient) refreshAccessToken() error {
 	now := time.Now().UTC()
 	refreshAt := ac.accessTokenExpiresOn.Add(-10 * time.Minute)
+
 	if now.After(refreshAt) {
 		err := ac.getAccessToken()
 		if err != nil {
 			return fmt.Errorf("Error refreshing access token: %v", err)
 		}
 	}
-
 	return nil
 }
 
