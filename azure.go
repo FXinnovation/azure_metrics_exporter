@@ -83,13 +83,13 @@ type AzureResourceListResponse struct {
 }
 
 type AzureResource struct {
-	ID           string
+	ID           string            `json:"id"`
+	Name         string            `json:"name"`
+	Location     string            `json:"location"`
+	ResourceType string            `json:"type"`
+	Tags         map[string]string `json:"tags"`
 	Subscription string
-	Name         string
-	Location     string
 	ManagedBy    string
-	ResourceType string
-	Tags         map[string]string
 }
 
 // AzureClient represents our client to talk to the Azure api
@@ -297,6 +297,24 @@ func (ac *AzureClient) listByTag(tagName string, tagValue string) ([]AzureResour
 		})
 	}
 	return resources, nil
+}
+
+func (ac *AzureClient) lookupResourceByID(resourceID string) (AzureResource, error) {
+	apiVersion := "2019-07-01"
+	subscription := fmt.Sprintf("subscriptions/%s", sc.C.Credentials.SubscriptionID)
+	resourcesEndpoint := fmt.Sprintf("%s/%s/%s?api-version=%s", sc.C.ResourceManagerURL, subscription, resourceID, apiVersion)
+
+	body, err := getAzureMonitorResponse(resourcesEndpoint)
+	if err != nil {
+		return AzureResource{}, err
+	}
+
+	var resource AzureResource
+	err = json.Unmarshal(body, &resource)
+	if err != nil {
+		return AzureResource{}, fmt.Errorf("Error unmarshalling response body: %v", err)
+	}
+	return resource, nil
 }
 
 func secureString(value string) string {
