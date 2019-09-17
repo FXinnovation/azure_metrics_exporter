@@ -70,7 +70,7 @@ func (c *Collector) extractMetrics(ch chan<- prometheus.Metric, rm resourceMeta,
 		metricName = strings.Replace(metricName, "/", "_per_", -1)
 		metricName = invalidMetricChars.ReplaceAllString(metricName, "_")
 		metricValue := value.Timeseries[0].Data[len(value.Timeseries[0].Data)-1]
-		labels := CreateAllResourceLabelsFrom(rm)
+		labels := CreateResourceLabels(rm.ResourceURL)
 
 		if hasAggregation(rm.Aggregations, "Total") {
 			ch <- prometheus.MustNewConstMetric(
@@ -104,6 +104,26 @@ func (c *Collector) extractMetrics(ch chan<- prometheus.Metric, rm resourceMeta,
 			)
 		}
 	}
+
+	metricName := "azure_resource_info"
+	helpMsg := "Azure tags available for resource"
+	labels := CreateAllResourceLabelsFrom(rm)
+
+	// original
+	// ch <- prometheus.MustNewConstMetric(
+	// 	prometheus.NewDesc(metricName, helpMsg, nil, labels),
+	// 	prometheus.UntypedValue,
+	// 	0,
+	// )
+
+	// Gauge directly (works when single resource)
+	ch <- prometheus.NewGauge(prometheus.GaugeOpts{
+		Name:        metricName,
+		Help:        helpMsg,
+		ConstLabels: labels,
+		// Subsystem:   labels["resource_name"],
+		// Namespace:   labels["resource_name"],
+	})
 }
 
 func (c *Collector) batchCollectResources(ch chan<- prometheus.Metric, resources []resourceMeta) {
