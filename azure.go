@@ -70,7 +70,6 @@ type AzureBatchRequestResponse struct {
 		Content        AzureMetricValueResponse `json:"content"`
 	} `json:"responses"`
 }
-
 type AzureResourceListResponse struct {
 	Value []AzureResource `json:"value"`
 }
@@ -79,10 +78,10 @@ type AzureResource struct {
 	ID           string            `json:"id" pretty:"id"`
 	Name         string            `json:"name" pretty:"resource_name"`
 	Location     string            `json:"location" pretty:"azure_location"`
-	ResourceType string            `json:"type" pretty:"resource_type"`
+	Type         string            `json:"type" pretty:"resource_type"`
 	Tags         map[string]string `json:"tags" pretty:"tags"`
+	ManagedBy    string            `json:"managedBy" pretty:"managed_by"`
 	Subscription string            `pretty:"azure_subscription"`
-	ManagedBy    string            `pretty:"managed_by"`
 }
 
 // AzureClient represents our client to talk to the Azure api
@@ -210,7 +209,7 @@ func (ac *AzureClient) filteredListFromResourceGroup(resourceGroup config.Resour
 
 // Returns resource list filtered by tag name and tag value
 func (ac *AzureClient) filteredListByTag(resourceTag config.ResourceTag) ([]AzureResource, error) {
-	resources, err := ac.listByTag(resourceTag.ResourceTagName, resourceTag.ResourceTagValue)
+	resources, err := ac.listByTag(resourceTag.ResourceTagName, resourceTag.ResourceTagValue, resourceTag.ResourceTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +242,7 @@ func (ac *AzureClient) listFromResourceGroup(resourceGroup string, resourceTypes
 }
 
 // Returns all resource with the given couple tagname, tagvalue
-func (ac *AzureClient) listByTag(tagName string, tagValue string) ([]AzureResource, error) {
+func (ac *AzureClient) listByTag(tagName string, tagValue string, types []string) ([]AzureResource, error) {
 	apiVersion := "2018-05-01"
 	securedTagName := secureString(tagName)
 	securedTagValue := secureString(tagValue)
@@ -261,6 +260,11 @@ func (ac *AzureClient) listByTag(tagName string, tagValue string) ([]AzureResour
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshalling response body: %v", err)
 	}
+
+	if len(types) > 0 {
+		data.Value = data.filterTypesInResourceList(types)
+	}
+
 	return data.extendResources(), nil
 }
 
@@ -285,6 +289,21 @@ func (ac *AzureClient) lookupResourceByID(resourceID string) (AzureResource, err
 	return resource, nil
 }
 
+func (response *AzureResourceListResponse) filterTypesInResourceList(types []string) []AzureResource {
+	typesMap := make(map[string]struct{})
+	for _, resourceType := range types {
+		typesMap[resourceType] = struct{}{}
+	}
+	var filteredResources []AzureResource
+	for _, resource := range response.Value {
+		if _, typeExist := typesMap[resource.Type]; typeExist {
+			filteredResources = append(filteredResources, resource)
+		}
+	}
+	return filteredResources
+
+}
+
 func secureString(value string) string {
 	securedValue := strings.Replace(value, "'", "\\'", -1)
 	return securedValue
@@ -296,7 +315,6 @@ func getAzureMonitorResponse(azureManagementEndpoint string) ([]byte, error) {
 		return nil, fmt.Errorf("Error creating HTTP request: %v", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+ac.accessToken)
-
 	resp, err := ac.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Error: %v", err)
