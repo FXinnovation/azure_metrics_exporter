@@ -279,6 +279,9 @@ func (ac *AzureClient) lookupResourceByID(resourceID string) (AzureResource, err
 	if err != nil {
 		return AzureResource{}, fmt.Errorf("Error unmarshalling response body: %v", err)
 	}
+
+	resource.Subscription = sc.C.Credentials.SubscriptionID
+
 	return resource, nil
 }
 

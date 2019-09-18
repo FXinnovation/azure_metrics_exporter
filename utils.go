@@ -75,7 +75,6 @@ func CreateAllResourceLabelsFrom(rm resourceMeta) map[string]string {
 			labels[tag] = field.String()
 		}
 	}
-
 	return labels
 }
 
