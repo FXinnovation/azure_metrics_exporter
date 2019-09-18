@@ -107,7 +107,7 @@ func (c *Collector) extractMetrics(ch chan<- prometheus.Metric, rm resourceMeta,
 
 	infoLabels := CreateAllResourceLabelsFrom(rm)
 	ch <- prometheus.MustNewConstMetric(
-		prometheus.NewDesc("azure_resource_info", "Azure tags available for resource", nil, infoLabels),
+		prometheus.NewDesc("azure_resource_info", "Azure information available for resource", nil, infoLabels),
 		prometheus.UntypedValue,
 		0,
 	)

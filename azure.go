@@ -246,21 +246,7 @@ func (ac *AzureClient) listFromResourceGroup(resourceGroup string, resourceTypes
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshalling response body: %v", err)
 	}
-
-	var resources []AzureResource
-	var subscriptionPrefixLen = len(subscription) + 1
-	for _, val := range data.Value {
-		resources = append(resources, AzureResource{
-			ID:           val.Id[subscriptionPrefixLen:],
-			Subscription: subscription,
-			Name:         val.Name,
-			Location:     val.Location,
-			ManagedBy:    val.ManagedBy,
-			ResourceType: val.Type,
-			Tags:         val.Tags,
-		})
-	}
-	return resources, nil
+	return data.extractResources(), nil
 }
 
 // Returns all resource with the given couple tagname, tagvalue
@@ -282,21 +268,7 @@ func (ac *AzureClient) listByTag(tagName string, tagValue string) ([]AzureResour
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshalling response body: %v", err)
 	}
-
-	var resources []AzureResource
-	var subscriptionPrefixLen = len(subscription) + 1
-	for _, val := range data.Value {
-		resources = append(resources, AzureResource{
-			ID:           val.Id[subscriptionPrefixLen:],
-			Subscription: subscription,
-			Name:         val.Name,
-			Location:     val.Location,
-			ManagedBy:    val.ManagedBy,
-			ResourceType: val.Type,
-			Tags:         val.Tags,
-		})
-	}
-	return resources, nil
+	return data.extractResources(), nil
 }
 
 func (ac *AzureClient) lookupResourceByID(resourceID string) (AzureResource, error) {
@@ -344,6 +316,24 @@ func getAzureMonitorResponse(azureManagementEndpoint string) ([]byte, error) {
 		return nil, fmt.Errorf("Error reading body of response: %v", err)
 	}
 	return body, err
+}
+
+func (ar *AzureResourceListResponse) extractResources() []AzureResource {
+	subscription := fmt.Sprintf("subscriptions/%s", sc.C.Credentials.SubscriptionID)
+	var subscriptionPrefixLen = len(subscription) + 1
+
+	var resources []AzureResource
+	for _, val := range ar.Value {
+		resources = append(resources, AzureResource{
+			ID:           val.Id[subscriptionPrefixLen:],
+			Subscription: sc.C.Credentials.SubscriptionID,
+			Name:         val.Name,
+			Location:     val.Location,
+			ResourceType: val.Type,
+			Tags:         val.Tags,
+		})
+	}
+	return resources
 }
 
 // Extract resource names from the AzureResourceListResponse
