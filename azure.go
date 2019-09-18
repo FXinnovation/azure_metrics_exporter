@@ -72,24 +72,17 @@ type AzureBatchRequestResponse struct {
 }
 
 type AzureResourceListResponse struct {
-	Value []struct {
-		Id        string            `json:"id"`
-		Name      string            `json:"name"`
-		Type      string            `json:"type"`
-		ManagedBy string            `json:"managedBy"`
-		Location  string            `json:"location"`
-		Tags      map[string]string `json:"tags"`
-	} `json:"value"`
+	Value []AzureResource `json:"value"`
 }
 
 type AzureResource struct {
-	ID           string            `json:"id"`
-	Name         string            `json:"name"`
-	Location     string            `json:"location"`
-	ResourceType string            `json:"type"`
-	Tags         map[string]string `json:"tags"`
-	Subscription string
-	ManagedBy    string
+	ID           string            `json:"id" pretty:"id"`
+	Name         string            `json:"name" pretty:"resource_name"`
+	Location     string            `json:"location" pretty:"azure_location"`
+	ResourceType string            `json:"type" pretty:"resource_type"`
+	Tags         map[string]string `json:"tags" pretty:"tags"`
+	Subscription string            `pretty:"azure_subscription"`
+	ManagedBy    string            `pretty:"managed_by"`
 }
 
 // AzureClient represents our client to talk to the Azure api
@@ -246,7 +239,7 @@ func (ac *AzureClient) listFromResourceGroup(resourceGroup string, resourceTypes
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshalling response body: %v", err)
 	}
-	return data.extractResources(), nil
+	return data.extendResources(), nil
 }
 
 // Returns all resource with the given couple tagname, tagvalue
@@ -268,7 +261,7 @@ func (ac *AzureClient) listByTag(tagName string, tagValue string) ([]AzureResour
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshalling response body: %v", err)
 	}
-	return data.extractResources(), nil
+	return data.extendResources(), nil
 }
 
 func (ac *AzureClient) lookupResourceByID(resourceID string) (AzureResource, error) {
@@ -318,22 +311,15 @@ func getAzureMonitorResponse(azureManagementEndpoint string) ([]byte, error) {
 	return body, err
 }
 
-func (ar *AzureResourceListResponse) extractResources() []AzureResource {
+func (ar *AzureResourceListResponse) extendResources() []AzureResource {
 	subscription := fmt.Sprintf("subscriptions/%s", sc.C.Credentials.SubscriptionID)
 	var subscriptionPrefixLen = len(subscription) + 1
 
-	var resources []AzureResource
-	for _, val := range ar.Value {
-		resources = append(resources, AzureResource{
-			ID:           val.Id[subscriptionPrefixLen:],
-			Subscription: sc.C.Credentials.SubscriptionID,
-			Name:         val.Name,
-			Location:     val.Location,
-			ResourceType: val.Type,
-			Tags:         val.Tags,
-		})
+	for i, val := range ar.Value {
+		ar.Value[i].ID = val.ID[subscriptionPrefixLen:]
+		ar.Value[i].Subscription = sc.C.Credentials.SubscriptionID
 	}
-	return resources
+	return ar.Value
 }
 
 // Returns a filtered resource list based on a given resource list and regular expressions from the configuration

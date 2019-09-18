@@ -4,8 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 	"time"
+)
+
+const (
+	// position of resource group in a ResourceURL
+	resourceGroupPosition = 4
+	// position of sub resource name for longer ResourceURL
+	subResourceNamePosition = 10
 )
 
 // PrintPrettyJSON - Prints structs nicely for debugging.
@@ -42,11 +50,10 @@ func CreateResourceLabels(resourceID string) map[string]string {
 }
 
 func CreateAllResourceLabelsFrom(rm resourceMeta) map[string]string {
+	formatTag := "pretty"
 	labels := make(map[string]string)
 	split := strings.Split(rm.ResourceURL, "/")
-	labels["resource_group"] = split[4]
-	labels["resource_name"] = split[8]
-	labels["resource_type"] = rm.Resource.ResourceType
+	labels["resource_group"] = split[resourceGroupPosition]
 
 	for k, v := range rm.Resource.Tags {
 		k = strings.ToLower(k)
@@ -57,8 +64,18 @@ func CreateAllResourceLabelsFrom(rm resourceMeta) map[string]string {
 	}
 
 	if len(split) > 13 {
-		labels["sub_resource_name"] = split[10]
+		labels["sub_resource_name"] = split[subResourceNamePosition]
 	}
+
+	val := reflect.ValueOf(rm.Resource)
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i)
+		tag := reflect.TypeOf(rm.Resource).Field(i).Tag.Get(formatTag)
+		if field.Kind() == reflect.String {
+			labels[tag] = field.String()
+		}
+	}
+
 	return labels
 }
 
