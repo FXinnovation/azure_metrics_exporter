@@ -336,19 +336,6 @@ func (ar *AzureResourceListResponse) extractResources() []AzureResource {
 	return resources
 }
 
-// Extract resource names from the AzureResourceListResponse
-func extractResourceNames(data AzureResourceListResponse, subscription string) []string {
-	var resources []string
-	for _, result := range data.Value {
-		// subscription + leading '/'
-		subscriptionPrefixLen := len(subscription) + 1
-
-		// remove subscription from path to match manually specified ones
-		resources = append(resources, result.Id[subscriptionPrefixLen:])
-	}
-	return resources
-}
-
 // Returns a filtered resource list based on a given resource list and regular expressions from the configuration
 func (ac *AzureClient) filterResources(resources []AzureResource, resourceGroup config.ResourceGroup) []AzureResource {
 	filteredResources := []AzureResource{}
