@@ -18,6 +18,7 @@ import (
 type AzureMetricDefinitionResponse struct {
 	MetricDefinitionResponses []metricDefinitionResponse `json:"value"`
 }
+
 type metricDefinitionResponse struct {
 	Dimensions []struct {
 		LocalizedValue string `json:"localizedValue"`
@@ -70,6 +71,7 @@ type AzureBatchRequestResponse struct {
 		Content        AzureMetricValueResponse `json:"content"`
 	} `json:"responses"`
 }
+
 type AzureResourceListResponse struct {
 	Value []AzureResource `json:"value"`
 }
