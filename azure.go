@@ -270,8 +270,23 @@ func (ac *AzureClient) listByTag(tagName string, tagValue string, types []string
 	return data.extendResources(), nil
 }
 
+// Azure Monitor exposes resource information for different resource types under different endpoints
+func apiVersionForResource(resourceID string) string {
+	var apiVersion = "2019-07-01"
+	var alternateApiVersion = "2018-11-01"
+
+	exceptions := []string{"Microsoft.Storage/storageAccounts", "Microsoft.Web/sites", "Microsoft.Web/serverFarms"}
+	for _, e := range exceptions {
+		if strings.Contains(resourceID, e) {
+			apiVersion = alternateApiVersion
+		}
+	}
+	return apiVersion
+}
+
 func (ac *AzureClient) lookupResourceByID(resourceID string) (AzureResource, error) {
-	apiVersion := "2019-07-01"
+	var apiVersion = apiVersionForResource(resourceID)
+
 	subscription := fmt.Sprintf("subscriptions/%s", sc.C.Credentials.SubscriptionID)
 	resourcesEndpoint := fmt.Sprintf("%s/%s/%s?api-version=%s", sc.C.ResourceManagerURL, subscription, resourceID, apiVersion)
 
