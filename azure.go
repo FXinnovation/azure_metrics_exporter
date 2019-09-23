@@ -7,11 +7,17 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/RobustPerception/azure_metrics_exporter/config"
+)
+
+var (
+	apiVersionDate = regexp.MustCompile("^\\d{4}-\\d{2}-\\d{2}")
 )
 
 // AzureMetricDefinitionResponse represents metric definition response for a given resource from Azure.
@@ -84,6 +90,57 @@ type AzureResource struct {
 	Tags         map[string]string `json:"tags" pretty:"tags"`
 	ManagedBy    string            `json:"managedBy" pretty:"managed_by"`
 	Subscription string            `pretty:"azure_subscription"`
+}
+
+type APIVersionResponse struct {
+	Value []struct {
+		ID            string `json:"id"`
+		Namespace     string `json:"namespace"`
+		ResourceTypes []struct {
+			ResourceType string   `json:"resourceType"`
+			Locations    []string `json:"locations"`
+			APIVersions  []string `json:"apiVersions"`
+		} `json:"resourceTypes"`
+		RegistrationState string `json:"registrationState"`
+	} `json:"value"`
+}
+
+type APIVersionData struct {
+	Endpoint string
+	Version  string
+}
+
+func latestVersionFrom(list []string) string {
+	var versions []APIVersionData
+	for _, l := range list {
+		versions = append(versions, APIVersionData{
+			Version:  apiVersionDate.FindString(l),
+			Endpoint: l,
+		})
+	}
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i].Version > versions[j].Version
+	})
+	return versions[0].Endpoint
+}
+
+func (r *APIVersionResponse) getLatestBy(resource string) string {
+	split := strings.Split(resource, "/")
+	namespace := split[0]
+	resourceType := split[1]
+
+	var apiVersions []string
+	for _, val := range r.Value {
+		if val.Namespace == namespace {
+			for _, t := range val.ResourceTypes {
+				if t.ResourceType == resourceType {
+					apiVersions = t.APIVersions
+					break
+				}
+			}
+		}
+	}
+	return latestVersionFrom(apiVersions)
 }
 
 // AzureClient represents our client to talk to the Azure api
@@ -266,27 +323,30 @@ func (ac *AzureClient) listByTag(tagName string, tagValue string, types []string
 	if len(types) > 0 {
 		data.Value = data.filterTypesInResourceList(types)
 	}
-
 	return data.extendResources(), nil
 }
 
-// Azure Monitor exposes resource information for different resource types under different endpoints
-func apiVersionForResource(resourceID string) string {
-	var apiVersion = "2019-07-01"
-	var alternateApiVersion = "2018-11-01"
+func populateAPIVersions() (APIVersionResponse, error) {
+	apiVersion := "2015-01-01"
+	var versionResponse APIVersionResponse
 
-	exceptions := []string{"Microsoft.Storage/storageAccounts", "Microsoft.Web/sites", "Microsoft.Web/serverFarms"}
-	for _, e := range exceptions {
-		if strings.Contains(resourceID, e) {
-			apiVersion = alternateApiVersion
-		}
+	subscription := fmt.Sprintf("subscriptions/%s", sc.C.Credentials.SubscriptionID)
+	resourcesEndpoint := fmt.Sprintf("%s/%s/providers?api-version=%s", sc.C.ResourceManagerURL, subscription, apiVersion)
+
+	body, err := getAzureMonitorResponse(resourcesEndpoint)
+	if err != nil {
+		return versionResponse, err
 	}
-	return apiVersion
+
+	err = json.Unmarshal(body, &versionResponse)
+	if err != nil {
+		return versionResponse, fmt.Errorf("Error unmarshalling response body: %v", err)
+	}
+	return versionResponse, nil
 }
 
-func (ac *AzureClient) lookupResourceByID(resourceID string) (AzureResource, error) {
-	var apiVersion = apiVersionForResource(resourceID)
-
+func (ac *AzureClient) lookupResourceByID(apiVersion, resourceID string) (AzureResource, error) {
+	// apiVersion := "2019-07-01"
 	subscription := fmt.Sprintf("subscriptions/%s", sc.C.Credentials.SubscriptionID)
 	resourcesEndpoint := fmt.Sprintf("%s/%s/%s?api-version=%s", sc.C.ResourceManagerURL, subscription, resourceID, apiVersion)
 
@@ -318,7 +378,6 @@ func (response *AzureResourceListResponse) filterTypesInResourceList(types []str
 		}
 	}
 	return filteredResources
-
 }
 
 func secureString(value string) string {
