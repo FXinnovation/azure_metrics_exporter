@@ -60,7 +60,10 @@ func CreateAllResourceLabelsFrom(rm resourceMeta) map[string]string {
 		k = strings.Replace(k, " ", "_", -1)
 		k = strings.Replace(k, "-", "_", -1)
 		k = strings.Replace(k, "/", "_per_", -1)
-		labels[k] = v
+
+		if !strings.Contains(k, "hidden_related") {
+			labels[k] = v
+		}
 	}
 
 	if len(split) > 13 {
