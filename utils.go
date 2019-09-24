@@ -15,7 +15,8 @@ var (
 	resourceGroupPosition   = 4
 	resourceNamePosition    = 8
 	subResourceNamePosition = 10
-	invalidLabelChars       = regexp.MustCompile("[^\\w]")
+
+	invalidLabelChars = regexp.MustCompile("[^\\w]")
 )
 
 // PrintPrettyJSON - Prints structs nicely for debugging.
