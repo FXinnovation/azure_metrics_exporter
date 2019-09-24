@@ -28,6 +28,7 @@ var (
 	targetResourceType    = regexp.MustCompile("Microsoft\\.[a-zA-Z]+(\\/[a-zA-Z]+)+")
 	azureErrorDesc        = prometheus.NewDesc("azure_error", "Error collecting metrics", nil, nil)
 	batchSize             = 20
+	apiVersions           APIVersionResponse
 )
 
 func init() {
@@ -147,11 +148,6 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		log.Println(err)
 		ch <- prometheus.NewInvalidMetric(azureErrorDesc, err)
 		return
-	}
-
-	apiVersions, err := populateAPIVersions()
-	if err != nil {
-		log.Fatal(err)
 	}
 
 	var resources []resourceMeta
@@ -275,6 +271,11 @@ func main() {
 			}
 		}
 		os.Exit(0)
+	}
+
+	apiVersions, err = listAPIVersions()
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

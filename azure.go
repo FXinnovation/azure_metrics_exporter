@@ -326,7 +326,7 @@ func (ac *AzureClient) listByTag(tagName string, tagValue string, types []string
 	return data.extendResources(), nil
 }
 
-func populateAPIVersions() (APIVersionResponse, error) {
+func listAPIVersions() (APIVersionResponse, error) {
 	apiVersion := "2015-01-01"
 	var versionResponse APIVersionResponse
 
