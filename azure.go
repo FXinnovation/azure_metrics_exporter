@@ -137,7 +137,7 @@ func latestVersionFrom(apiList []string) string {
 	return versions[0].Endpoint
 }
 
-func (r *APIVersionResponse) extractAPIVersions() map[string]string {
+func (r *APIVersionResponse) extractAPIVersions() APIVersionMap {
 	var apiVersions = APIVersionMap{}
 	for _, val := range r.Value {
 		for _, t := range val.ResourceTypes {
