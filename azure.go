@@ -346,7 +346,6 @@ func populateAPIVersions() (APIVersionResponse, error) {
 }
 
 func (ac *AzureClient) lookupResourceByID(apiVersion, resourceID string) (AzureResource, error) {
-	// apiVersion := "2019-07-01"
 	subscription := fmt.Sprintf("subscriptions/%s", sc.C.Credentials.SubscriptionID)
 	resourcesEndpoint := fmt.Sprintf("%s/%s/%s?api-version=%s", sc.C.ResourceManagerURL, subscription, resourceID, apiVersion)
 
