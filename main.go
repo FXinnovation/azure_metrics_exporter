@@ -25,10 +25,8 @@ var (
 	listenAddress         = kingpin.Flag("web.listen-address", "The address to listen on for HTTP requests.").Default(":9276").String()
 	listMetricDefinitions = kingpin.Flag("list.definitions", "List available metric definitions for the given resources and exit.").Bool()
 	invalidMetricChars    = regexp.MustCompile("[^a-zA-Z0-9_:]")
-	targetResourceType    = regexp.MustCompile("Microsoft\\.[a-zA-Z]+(\\/[a-zA-Z]+)+")
 	azureErrorDesc        = prometheus.NewDesc("azure_error", "Error collecting metrics", nil, nil)
 	batchSize             = 20
-	apiVersions           APIVersionResponse
 )
 
 func init() {
@@ -163,11 +161,8 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		resource.Aggregations = filterAggregations(target.Aggregations)
 		resource.ResourceURL = resourceURLFrom(target.Resource, resource.Metrics, resource.Aggregations)
 
-		resourceType := targetResourceType.FindString(target.Resource)
-		apiVersion := apiVersions.getLatestBy(resourceType)
-
 		var err error
-		resource.Resource, err = ac.lookupResourceByID(apiVersion, target.Resource)
+		resource.Resource, err = ac.lookupResourceByID(target.Resource)
 		if err != nil {
 			log.Printf("failed to get resource information for target %s: %v", target.Resource, err)
 			ch <- prometheus.NewInvalidMetric(azureErrorDesc, err)
@@ -222,10 +217,8 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 			resource.Aggregations = filterAggregations(resourceTag.Aggregations)
 			resource.ResourceURL = resourceURLFrom(f.ID, resource.Metrics, resource.Aggregations)
 
-			apiVersion := apiVersions.getLatestBy(f.Type)
-
 			var err error
-			resource.Resource, err = ac.lookupResourceByID(apiVersion, f.ID)
+			resource.Resource, err = ac.lookupResourceByID(f.ID)
 			if err != nil {
 				log.Printf("failed to get resource information for target %s: %v", f.ID, err)
 				ch <- prometheus.NewInvalidMetric(azureErrorDesc, err)
@@ -273,7 +266,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	apiVersions, err = listAPIVersions()
+	err = ac.listAPIVersions()
 	if err != nil {
 		log.Fatal(err)
 	}

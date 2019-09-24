@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -17,7 +18,8 @@ import (
 )
 
 var (
-	apiVersionDate = regexp.MustCompile("^\\d{4}-\\d{2}-\\d{2}")
+	apiVersionDate     = regexp.MustCompile("^\\d{4}-\\d{2}-\\d{2}")
+	targetResourceType = regexp.MustCompile("Microsoft\\.[a-zA-Z]+(\\/[a-zA-Z]+)")
 )
 
 // AzureMetricDefinitionResponse represents metric definition response for a given resource from Azure.
@@ -107,40 +109,57 @@ type APIVersionResponse struct {
 
 type APIVersionData struct {
 	Endpoint string
-	Version  string
+	Date     time.Time
 }
 
-func latestVersionFrom(list []string) string {
+type APIVersionMap map[string]string
+
+func latestVersionFrom(apiList []string) string {
 	var versions []APIVersionData
-	for _, l := range list {
+	format := "2006-01-02"
+
+	for _, api := range apiList {
+		dateStr := apiVersionDate.FindString(api)
+		date, err := time.Parse(format, dateStr)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
 		versions = append(versions, APIVersionData{
-			Version:  apiVersionDate.FindString(l),
-			Endpoint: l,
+			Date:     date,
+			Endpoint: api,
 		})
 	}
+
 	sort.Slice(versions, func(i, j int) bool {
-		return versions[i].Version > versions[j].Version
+		return versions[j].Date.Before(versions[i].Date)
 	})
 	return versions[0].Endpoint
 }
 
-func (r *APIVersionResponse) getLatestBy(resource string) string {
-	split := strings.Split(resource, "/")
-	namespace := split[0]
-	resourceType := split[1]
-
-	var apiVersions []string
+func (r *APIVersionResponse) extractAPIVersions() map[string]string {
+	var apiVersions = APIVersionMap{}
 	for _, val := range r.Value {
-		if val.Namespace == namespace {
-			for _, t := range val.ResourceTypes {
-				if t.ResourceType == resourceType {
-					apiVersions = t.APIVersions
-					break
-				}
+		for _, t := range val.ResourceTypes {
+			if len(t.APIVersions) == 0 {
+				continue
 			}
+			resourceType := strings.Join([]string{val.Namespace, t.ResourceType}, "/")
+			apiVersions[resourceType] = latestVersionFrom(t.APIVersions)
 		}
 	}
-	return latestVersionFrom(apiVersions)
+	return apiVersions
+}
+
+func (m *APIVersionMap) findBy(resourceType string) string {
+	var apiVersion string
+	for mType, mVersion := range *m {
+		if mType == resourceType {
+			apiVersion = mVersion
+			break
+		}
+	}
+	return apiVersion
 }
 
 // AzureClient represents our client to talk to the Azure api
@@ -148,6 +167,7 @@ type AzureClient struct {
 	client               *http.Client
 	accessToken          string
 	accessTokenExpiresOn time.Time
+	APIVersions          APIVersionMap
 }
 
 // NewAzureClient returns an Azure client to talk the Azure API
@@ -326,7 +346,7 @@ func (ac *AzureClient) listByTag(tagName string, tagValue string, types []string
 	return data.extendResources(), nil
 }
 
-func listAPIVersions() (APIVersionResponse, error) {
+func (ac *AzureClient) listAPIVersions() error {
 	apiVersion := "2015-01-01"
 	var versionResponse APIVersionResponse
 
@@ -335,17 +355,21 @@ func listAPIVersions() (APIVersionResponse, error) {
 
 	body, err := getAzureMonitorResponse(resourcesEndpoint)
 	if err != nil {
-		return versionResponse, err
+		return err
 	}
 
 	err = json.Unmarshal(body, &versionResponse)
 	if err != nil {
-		return versionResponse, fmt.Errorf("Error unmarshalling response body: %v", err)
+		return fmt.Errorf("Error unmarshalling response body: %v", err)
 	}
-	return versionResponse, nil
+
+	ac.APIVersions = versionResponse.extractAPIVersions()
+	return nil
 }
 
-func (ac *AzureClient) lookupResourceByID(apiVersion, resourceID string) (AzureResource, error) {
+func (ac *AzureClient) lookupResourceByID(resourceID string) (AzureResource, error) {
+	resourceType := targetResourceType.FindString(resourceID)
+	apiVersion := ac.APIVersions.findBy(resourceType)
 	subscription := fmt.Sprintf("subscriptions/%s", sc.C.Credentials.SubscriptionID)
 	resourcesEndpoint := fmt.Sprintf("%s/%s/%s?api-version=%s", sc.C.ResourceManagerURL, subscription, resourceID, apiVersion)
 
