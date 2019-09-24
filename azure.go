@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -115,7 +114,7 @@ type APIVersionData struct {
 type APIVersionMap map[string]string
 
 func latestVersionFrom(apiList []string) string {
-	var versions []APIVersionData
+	var latest = &APIVersionData{}
 	format := "2006-01-02"
 
 	for _, api := range apiList {
@@ -125,16 +124,13 @@ func latestVersionFrom(apiList []string) string {
 			log.Println(err)
 			continue
 		}
-		versions = append(versions, APIVersionData{
-			Date:     date,
-			Endpoint: api,
-		})
-	}
 
-	sort.Slice(versions, func(i, j int) bool {
-		return versions[j].Date.Before(versions[i].Date)
-	})
-	return versions[0].Endpoint
+		if latest == nil || latest.Date.Before(date) {
+			latest = &APIVersionData{Endpoint: api, Date: date}
+		}
+
+	}
+	return latest.Endpoint
 }
 
 func (r *APIVersionResponse) extractAPIVersions() APIVersionMap {
@@ -369,7 +365,15 @@ func (ac *AzureClient) listAPIVersions() error {
 
 func (ac *AzureClient) lookupResourceByID(resourceID string) (AzureResource, error) {
 	resourceType := targetResourceType.FindString(resourceID)
+	if resourceType == "" {
+		return AzureResource{}, fmt.Errorf("No type found for resource: %s", resourceID)
+	}
+
 	apiVersion := ac.APIVersions.findBy(resourceType)
+	if apiVersion == "" {
+		return AzureResource{}, fmt.Errorf("No api version found for type: %s", resourceType)
+	}
+
 	subscription := fmt.Sprintf("subscriptions/%s", sc.C.Credentials.SubscriptionID)
 	resourcesEndpoint := fmt.Sprintf("%s/%s/%s?api-version=%s", sc.C.ResourceManagerURL, subscription, resourceID, apiVersion)
 
