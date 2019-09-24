@@ -17,7 +17,6 @@ package graphite
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -27,6 +26,7 @@ import (
 
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
+	"golang.org/x/net/context"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -191,10 +191,8 @@ func writeMetrics(w io.Writer, mfs []*dto.MetricFamily, prefix string, now model
 
 	buf := bufio.NewWriter(w)
 	for _, s := range vec {
-		for _, c := range prefix {
-			if _, err := buf.WriteRune(c); err != nil {
-				return err
-			}
+		if err := writeSanitized(buf, prefix); err != nil {
+			return err
 		}
 		if err := buf.WriteByte('.'); err != nil {
 			return err
@@ -275,7 +273,7 @@ func replaceInvalidRune(c rune) rune {
 	if c == ' ' {
 		return '.'
 	}
-	if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == ':' || c == '-' || (c >= '0' && c <= '9')) {
+	if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == ':' || (c >= '0' && c <= '9')) {
 		return '_'
 	}
 	return c
