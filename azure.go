@@ -19,7 +19,7 @@ import (
 
 var (
 	apiVersionDate     = regexp.MustCompile("^\\d{4}-\\d{2}-\\d{2}")
-	targetResourceType = regexp.MustCompile("Microsoft\\.[a-zA-Z]+(\\/[a-zA-Z]+)")
+	targetResourceType = regexp.MustCompile("[mM]icrosoft\\.[a-zA-Z]+(\\/[a-zA-Z]+)")
 )
 
 // AzureMetricDefinitionResponse represents metric definition response for a given resource from Azure.
