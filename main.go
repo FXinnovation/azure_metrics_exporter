@@ -27,6 +27,7 @@ var (
 	invalidMetricChars    = regexp.MustCompile("[^a-zA-Z0-9_:]")
 	azureErrorDesc        = prometheus.NewDesc("azure_error", "Error collecting metrics", nil, nil)
 	batchSize             = 20
+	resourceList          = map[string]AzureResource{}
 )
 
 func init() {
@@ -162,12 +163,15 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		resource.resourceURL = resourceURLFrom(target.Resource, resource.metrics, resource.aggregations)
 
 		var err error
-		resource.resource, err = ac.lookupResourceByID(target.Resource)
-		if err != nil {
-			log.Printf("failed to get resource information for target %s: %v", target.Resource, err)
-			ch <- prometheus.NewInvalidMetric(azureErrorDesc, err)
-			continue
+		if _, ok := resourceList[target.Resource]; !ok {
+			resourceList[target.Resource], err = ac.lookupResourceByID(target.Resource)
+			if err != nil {
+				log.Printf("failed to get resource information for target %s: %v", target.Resource, err)
+				ch <- prometheus.NewInvalidMetric(azureErrorDesc, err)
+				continue
+			}
 		}
+		resource.resource = resourceList[target.Resource]
 		resources = append(resources, resource)
 	}
 
@@ -218,12 +222,15 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 			resource.resourceURL = resourceURLFrom(f.ID, resource.metrics, resource.aggregations)
 
 			var err error
-			resource.resource, err = ac.lookupResourceByID(f.ID)
-			if err != nil {
-				log.Printf("failed to get resource information for target %s: %v", f.ID, err)
-				ch <- prometheus.NewInvalidMetric(azureErrorDesc, err)
-				continue
+			if _, ok := resourceList[f.ID]; !ok {
+				resourceList[f.ID], err = ac.lookupResourceByID(f.ID)
+				if err != nil {
+					log.Printf("failed to get resource information for target %s: %v", f.ID, err)
+					ch <- prometheus.NewInvalidMetric(azureErrorDesc, err)
+					continue
+				}
 			}
+			resource.resource = resourceList[f.ID]
 			resources = append(resources, resource)
 		}
 	}
