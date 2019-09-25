@@ -16,7 +16,7 @@ var (
 	resourceNamePosition    = 8
 	subResourceNamePosition = 10
 
-	invalidLabelChars = regexp.MustCompile("[^\\w]")
+	invalidLabelChars = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
 )
 
 // PrintPrettyJSON - Prints structs nicely for debugging.
@@ -55,13 +55,13 @@ func CreateResourceLabels(resourceID string) map[string]string {
 func CreateAllResourceLabelsFrom(rm resourceMeta) map[string]string {
 	formatTag := "pretty"
 	labels := make(map[string]string)
-	split := strings.Split(rm.ResourceURL, "/")
+	split := strings.Split(rm.resourceURL, "/")
 	labels["resource_group"] = split[resourceGroupPosition]
 
-	for k, v := range rm.Resource.Tags {
+	for k, v := range rm.resource.Tags {
 		k = strings.ToLower(k)
 		k = invalidLabelChars.ReplaceAllString(k, "_")
-		labels[k] = v
+		labels["tag_"+k] = v
 	}
 
 	if len(split) > 13 {
@@ -69,10 +69,10 @@ func CreateAllResourceLabelsFrom(rm resourceMeta) map[string]string {
 	}
 
 	// create a label for each field of the resource
-	val := reflect.ValueOf(rm.Resource)
+	val := reflect.ValueOf(rm.resource)
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
-		tag := reflect.TypeOf(rm.Resource).Field(i).Tag.Get(formatTag)
+		tag := reflect.TypeOf(rm.resource).Field(i).Tag.Get(formatTag)
 		if field.Kind() == reflect.String {
 			labels[tag] = field.String()
 		}
