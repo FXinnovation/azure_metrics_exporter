@@ -16,7 +16,8 @@ var (
 	resourceNamePosition    = 8
 	subResourceNamePosition = 10
 
-	invalidLabelChars = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
+	invalidLabelPrefix = regexp.MustCompile(`^[^a-zA-Z_]*`)
+	invalidLabelChars  = regexp.MustCompile(`[^a-zA-Z0-9_]+`)
 )
 
 // PrintPrettyJSON - Prints structs nicely for debugging.
@@ -60,8 +61,13 @@ func CreateAllResourceLabelsFrom(rm resourceMeta) map[string]string {
 
 	for k, v := range rm.resource.Tags {
 		k = strings.ToLower(k)
+
+		if !invalidLabelPrefix.MatchString(k) {
+			k = "_" + k
+		}
+
 		k = invalidLabelChars.ReplaceAllString(k, "_")
-		labels["tag_"+k] = v
+		labels[k] = v
 	}
 
 	if len(split) > 13 {
