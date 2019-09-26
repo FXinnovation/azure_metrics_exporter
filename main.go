@@ -114,6 +114,7 @@ func (c *Collector) extractMetrics(ch chan<- prometheus.Metric, rm resourceMeta,
 			prometheus.GaugeValue,
 			1,
 		)
+		publishedResource[rm.resource.ID] = true
 	}
 }
 
@@ -152,8 +153,10 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
+	publishedResource = map[string]bool{}
 	resourceList = map[string]AzureResource{}
 	var resources []resourceMeta
+
 	for _, target := range sc.C.Targets {
 		var rm resourceMeta
 
