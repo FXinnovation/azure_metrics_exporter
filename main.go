@@ -172,7 +172,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 			if err != nil {
 				log.Printf("failed to get resource information for target %s: %v", target.Resource, err)
 				ch <- prometheus.NewInvalidMetric(azureErrorDesc, err)
-				continue
+				return
 			}
 			resourceList[target.Resource] = resource
 		}
@@ -232,7 +232,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 				if err != nil {
 					log.Printf("failed to get resource information for target %s: %v", f.ID, err)
 					ch <- prometheus.NewInvalidMetric(azureErrorDesc, err)
-					continue
+					return
 				}
 				resourceList[f.ID] = resource
 			}
