@@ -119,7 +119,9 @@ func (c *Collector) extractMetrics(ch chan<- prometheus.Metric, rm resourceMeta,
 	}
 }
 
-func (c *Collector) batchCollectMetrics(ch chan<- prometheus.Metric, resources []resourceMeta, publishedResource map[string]bool) {
+func (c *Collector) batchCollectMetrics(ch chan<- prometheus.Metric, resources []resourceMeta) {
+	var publishedResource = map[string]bool{}
+
 	// collect metrics in batches
 	for i := 0; i < len(resources); i += batchSize {
 		j := i + batchSize
@@ -209,7 +211,6 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
-	var publishedResource = map[string]bool{}
 	var resources []resourceMeta
 	var incompleteResources []resourceMeta
 
@@ -287,7 +288,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	resources = append(resources, completeResources...)
-	c.batchCollectMetrics(ch, resources, publishedResource)
+	c.batchCollectMetrics(ch, resources)
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
