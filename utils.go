@@ -55,17 +55,12 @@ func CreateResourceLabels(resourceURL string) map[string]string {
 func CreateAllResourceLabelsFrom(rm resourceMeta) map[string]string {
 	formatTag := "pretty"
 	labels := make(map[string]string)
-	split := strings.Split(rm.resourceURL, "/")
 
 	for k, v := range rm.resource.Tags {
 		k = strings.ToLower(k)
 		k = "tag_" + k
 		k = invalidLabelChars.ReplaceAllString(k, "_")
 		labels[k] = v
-	}
-
-	if len(split) > 13 {
-		labels["sub_resource_name"] = split[subResourceNamePosition]
 	}
 
 	// create a label for each field of the resource
@@ -79,11 +74,13 @@ func CreateAllResourceLabelsFrom(rm resourceMeta) map[string]string {
 	}
 
 	// Most labels are handled by iterating over the fields of resourceMeta.AzureResource.
-	// Their tag values are used as label keys. The only two labels which are created here
-	// are "resource_group" & "resource_name".
-	labels["resource_group"] = split[resourceGroupPosition]
-	labels["resource_name"] = split[resourceNamePosition]
-
+	// Their tag values are used as label keys.
+	// To keep coherence with the metric labels, we create "resource_group",  "resource_name"
+	// and "sub_resource_name" by invoking CreateResourceLabels.
+	resourceLabels := CreateResourceLabels(rm.resourceURL)
+	for k, v := range resourceLabels {
+		labels[k] = v
+	}
 	return labels
 }
 
