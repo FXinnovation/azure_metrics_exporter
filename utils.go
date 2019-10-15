@@ -39,10 +39,10 @@ func GetTimes() (string, string) {
 	return endTime, startTime
 }
 
-// CreateResourceLabels - Returns resource labels for a give resource ID.
-func CreateResourceLabels(resourceID string) map[string]string {
+// CreateResourceLabels - Returns resource labels for a given resource URL.
+func CreateResourceLabels(resourceURL string) map[string]string {
 	labels := make(map[string]string)
-	resource := strings.Split(resourceID, "/")
+	resource := strings.Split(resourceURL, "/")
 	labels["resource_group"] = resource[resourceGroupPosition]
 	labels["resource_name"] = resource[resourceNamePosition]
 	if len(resource) > 13 {
@@ -56,12 +56,6 @@ func CreateAllResourceLabelsFrom(rm resourceMeta) map[string]string {
 	formatTag := "pretty"
 	labels := make(map[string]string)
 	split := strings.Split(rm.resourceURL, "/")
-
-	// Most labels are handled by iterating over the fields of resourceMeta.AzureResource.
-	// Their tag values are used as label keys. The only label value that is created here
-	// is "resource_group", as the current implementation of resourceMeta doesn't
-	// store this information.
-	labels["resource_group"] = split[resourceGroupPosition]
 
 	for k, v := range rm.resource.Tags {
 		k = strings.ToLower(k)
@@ -83,6 +77,13 @@ func CreateAllResourceLabelsFrom(rm resourceMeta) map[string]string {
 			labels[tag] = field.String()
 		}
 	}
+
+	// Most labels are handled by iterating over the fields of resourceMeta.AzureResource.
+	// Their tag values are used as label keys. The only two labels which are created here
+	// are "resource_group" & "resource_name".
+	labels["resource_group"] = split[resourceGroupPosition]
+	labels["resource_name"] = split[resourceNamePosition]
+
 	return labels
 }
 
